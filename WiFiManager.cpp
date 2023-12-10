@@ -12,6 +12,9 @@
 
 #include "WiFiManager.h"
 
+
+int count = 0;//uber
+
 #if defined(ESP8266) || defined(ESP32)
 
 #ifdef ESP32
@@ -575,8 +578,26 @@ void WiFiManager::stopWebPortal() {
 }
 
 boolean WiFiManager::configPortalHasTimeout(){
+//*********************************************************************************
+// implementacion para reconexiones  uber-  uagaviria@gmail.com
+//*********************************************************************************
+      count++; // uber
+      delay(1);
+
+        if(count >= 60000)
+  {
+      //ESP.reset();
+      ESP.restart();
+      delay(2000);
+  } // UBER
+          Serial.print("Contador: ");
+          Serial.println(count);
+//*********************************************************************************
+// 
+//*********************************************************************************
+
     if(!configPortalActive) return false;
-    uint16_t logintvl = 30000; // how often to emit timeing out counter logging
+    uint16_t logintvl = 30000; //  con qué frecuencia emitir el registro del contador de tiempo de espera
 
     // handle timeout portal client check
     if(_configPortalTimeout == 0 || (_apClientCheck && (WiFi_softap_num_stations() > 0))){
@@ -1299,6 +1320,7 @@ void WiFiManager::HTTPSend(const String &content){
  * HTTPD handler for page requests
  */
 void WiFiManager::handleRequest() {
+  count = 0; // uber
   _webPortalAccessed = millis();
 
   // TESTING HTTPD AUTH RFC 2617
@@ -1813,13 +1835,6 @@ void WiFiManager::handleWifiSave() {
   //SAVE/connect here
   _ssid = server->arg(F("s")).c_str();
   _pass = server->arg(F("p")).c_str();
-
-  if(_ssid == "" && _pass != ""){
-    _ssid = WiFi_SSID(true); // password change, placeholder ssid, @todo compare pass to old?, confirm ssid is clean
-    #ifdef WM_DEBUG_LEVEL
-    DEBUG_WM(WM_DEBUG_VERBOSE,F("Detected WiFi password change"));
-    #endif    
-  }
 
   #ifdef WM_DEBUG_LEVEL
   String requestinfo = "SERVER_REQUEST\n----------------\n";
@@ -2421,18 +2436,16 @@ void WiFiManager::handleNotFound() {
  * Return true in that case so the page handler do not try to handle the request again. 
  */
 boolean WiFiManager::captivePortal() {
+  #ifdef WM_DEBUG_LEVEL
+  DEBUG_WM(WM_DEBUG_MAX,"-> " + server->hostHeader());
+  #endif
   
-  if(!_enableCaptivePortal || !configPortalActive) return false; // skip redirections if cp not enabled or not in ap mode
+  if(!_enableCaptivePortal) return false; // skip redirections, @todo maybe allow redirection even when no cp ? might be useful
   
   String serverLoc =  toStringIp(server->client().localIP());
 
-  #ifdef WM_DEBUG_LEVEL
-  DEBUG_WM(WM_DEBUG_DEV,"-> " + server->hostHeader());
-  DEBUG_WM(WM_DEBUG_DEV,"serverLoc " + serverLoc);
-  #endif
-
   // fallback for ipv6 bug
-  if(serverLoc == "0.0.0.0"){
+  if(serverLoc = "0.0.0.0"){
     if ((WiFi.status()) != WL_CONNECTED)
       serverLoc = toStringIp(WiFi.softAPIP());
     else
@@ -2445,7 +2458,6 @@ boolean WiFiManager::captivePortal() {
   if (doredirect) {
     #ifdef WM_DEBUG_LEVEL
     DEBUG_WM(WM_DEBUG_VERBOSE,F("<- Request redirected to captive portal"));
-    DEBUG_WM(WM_DEBUG_DEV,"serverLoc " + serverLoc);
     #endif
     server->sendHeader(F("Location"), (String)F("http://") + serverLoc, true); // @HTTPHEAD send redirect
     server->send ( 302, FPSTR(HTTP_HEAD_CT2), ""); // Empty content inhibits Content-length header so we have to close the socket ourselves.
